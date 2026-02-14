@@ -104,6 +104,11 @@ class DeploymentService {
 
             // Log helper that includes deployment ID and emits to Socket.IO
             const log = (message, type = 'info') => {
+                // Skip empty messages to prevent validation errors
+                if (!message || message.trim() === '') {
+                    return;
+                }
+                
                 logMessage(message, type);
                 DeploymentLog.create(deploymentId, message, type).catch(console.error);
                 
@@ -126,6 +131,7 @@ class DeploymentService {
                     frontend_port,
                     `${subdomain}.${process.env.BASE_DOMAIN}`,
                     deployment.pm2_frontend_name,
+                    deployment.env_vars || {},
                     log
                 );
 
@@ -169,6 +175,7 @@ class DeploymentService {
                     backend_port,
                     `${subdomain}-api.${process.env.BASE_DOMAIN}`,
                     deployment.pm2_backend_name,
+                    deployment.env_vars || {},
                     log
                 );
 
