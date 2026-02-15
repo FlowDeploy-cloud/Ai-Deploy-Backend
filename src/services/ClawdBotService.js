@@ -319,6 +319,12 @@ PYTHON_EOF
                 
                 logMessage(`✅ Deployment verified successfully on port ${actualPort}!`, 'success');
                 
+                // Fix Vite config for subdomain allowedHosts (async, don't wait)
+                logMessage('🔧 Checking if Vite config needs fixing...', 'info');
+                this.fixViteConfig(appName, domain, logMessage).catch(err => {
+                    logMessage(`⚠️ Vite config fix failed (non-critical): ${err.message}`, 'warning');
+                });
+                
                 return {
                     success: true,
                     message: deploymentDetails.message || 'Deployment completed successfully',
@@ -621,6 +627,94 @@ PYTHON_EOF
             
         } catch (error) {
             console.error('Failed to restart deployment:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async fixViteConfig(appName, domain, logMessage) {
+        try {
+            logMessage('🔧 Fixing Vite configuration for subdomain...', 'info');
+            
+            // Get app working directory from PM2
+            const cwdResult = await this.ssh.executeCommand(
+                `pm2 jlist | jq -r '.[] | select(.name=="${appName}") | .pm2_env.pm_cwd'`
+            );
+            
+            if (!cwdResult.success || !cwdResult.stdout.trim() || cwdResult.stdout.trim() === 'null') {
+                logMessage('⚠️ Could not find app directory', 'warning');
+                return { success: false };
+            }
+            
+            const appDir = cwdResult.stdout.trim();
+            logMessage(`📂 App directory: ${appDir}`, 'info');
+            
+            // Check for both .js and .ts vite config files
+            let viteConfigPath = `${appDir}/vite.config.js`;
+            let viteConfigExists = await this.ssh.fileExists(viteConfigPath);
+            
+            if (!viteConfigExists) {
+                viteConfigPath = `${appDir}/vite.config.ts`;
+                viteConfigExists = await this.ssh.fileExists(viteConfigPath);
+            }
+            
+            if (!viteConfigExists) {
+                logMessage('ℹ️  No vite.config.js/ts found - not a Vite app', 'info');
+                return { success: true, skipped: true };
+            }
+            
+            logMessage(`✅ Found ${viteConfigPath.split('/').pop()} - adding allowedHosts fix`, 'info');
+            
+            // Read current config
+            const currentConfig = await this.ssh.readFile(viteConfigPath);
+            
+            // Check if already has allowedHosts
+            if (currentConfig.includes('allowedHosts')) {
+                logMessage('ℹ️  vite.config already has allowedHosts configured', 'info');
+                return { success: true, alreadyConfigured: true };
+            }
+            
+            // Create updated config with allowedHosts
+            let updatedConfig = currentConfig;
+            
+            // Find the server section or create one
+            if (currentConfig.includes('server:')) {
+                // Add allowedHosts to existing server config (after opening brace)
+                updatedConfig = currentConfig.replace(
+                    /server:\s*\{/,
+                    `server: {\n    allowedHosts: ['${domain}', '.projectmarket.in', 'localhost'],`
+                );
+            } else {
+                // Add server section before plugins or at the beginning of config object
+                if (currentConfig.includes('plugins:')) {
+                    updatedConfig = currentConfig.replace(
+                        /(\(\s*\(?{)/,
+                        `$1\n  server: {\n    allowedHosts: ['${domain}', '.projectmarket.in', 'localhost'],\n  },`
+                    );
+                } else {
+                    updatedConfig = currentConfig.replace(
+                        /export\s+default\s+defineConfig\s*\(\s*\(\s*\)?\s*=>\s*\(\s*{/,
+                        `export default defineConfig(() => ({\n  server: {\n    allowedHosts: ['${domain}', '.projectmarket.in', 'localhost'],\n  },`
+                    );
+                }
+            }
+            
+            // Write updated config
+            await this.ssh.writeFile(viteConfigPath, updatedConfig);
+            logMessage('✅ Updated vite.config with allowedHosts', 'success');
+            
+            // Restart the app to apply changes
+            logMessage('🔄 Restarting app to apply Vite config changes...', 'info');
+            await this.ssh.restartPM2Process(appName);
+            
+            // Wait for restart
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            logMessage('✅ Vite config fixed and app restarted', 'success');
+            
+            return { success: true, fixed: true };
+            
+        } catch (error) {
+            logMessage(`⚠️ Failed to fix Vite config: ${error.message}`, 'warning');
             return { success: false, error: error.message };
         }
     }

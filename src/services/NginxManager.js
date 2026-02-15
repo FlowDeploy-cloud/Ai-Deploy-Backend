@@ -4,6 +4,39 @@ class NginxManager {
     constructor() {
         this.ssh = getSSHManager();
         this.baseDomain = process.env.BASE_DOMAIN || 'projectmarket.in';
+        this.enableSSL = process.env.ENABLE_SSL !== 'false'; // Enable SSL by default
+    }
+
+    async obtainSSLCertificate(fullDomain) {
+        console.log(`🔒 Obtaining SSL certificate for ${fullDomain}...`);
+        
+        try {
+            // Stop nginx temporarily
+            console.log('⏸️  Stopping nginx...');
+            await this.ssh.executeCommand('systemctl stop nginx');
+            
+            // Get SSL certificate with certbot
+            const certbotCommand = `certbot certonly --standalone -d ${fullDomain} --non-interactive --agree-tos --email admin@${this.baseDomain}`;
+            const certResult = await this.ssh.executeCommand(certbotCommand);
+            
+            // Start nginx back
+            console.log('▶️  Starting nginx...');
+            await this.ssh.executeCommand('systemctl start nginx');
+            
+            if (certResult.stdout.includes('Successfully received certificate') || 
+                certResult.stdout.includes('Certificate not yet due for renewal')) {
+                console.log(`✅ SSL certificate obtained for ${fullDomain}`);
+                return true;
+            } else {
+                console.error('❌ Failed to obtain SSL certificate:', certResult.stderr);
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Error obtaining SSL certificate:', error.message);
+            // Make sure nginx is started even if cert fails
+            await this.ssh.executeCommand('systemctl start nginx');
+            return false;
+        }
     }
 
     async createSubdomainConfig(subdomain, port, isBackend = false) {
@@ -11,7 +44,54 @@ class NginxManager {
             ? `${subdomain}-api.${this.baseDomain}`
             : `${subdomain}.${this.baseDomain}`;
 
-        const config = `server {
+        let config;
+        let useHTTPS = false;
+
+        // Try to get SSL certificate first
+        if (this.enableSSL) {
+            const sslObtained = await this.obtainSSLCertificate(fullDomain);
+            if (sslObtained) {
+                useHTTPS = true;
+                // Create HTTPS config with redirect
+                config = `server {
+    listen 80;
+    server_name ${fullDomain};
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${fullDomain};
+
+    ssl_certificate /etc/letsencrypt/live/${fullDomain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${fullDomain}/privkey.pem;
+    
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+
+    location / {
+        proxy_pass http://127.0.0.1:${port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+}`;
+            } else {
+                console.log('⚠️  SSL certificate failed, falling back to HTTP');
+            }
+        }
+
+        // Fallback to HTTP-only config if SSL failed or disabled
+        if (!useHTTPS) {
+            config = `server {
     listen 80;
     server_name ${fullDomain};
 
@@ -29,6 +109,7 @@ class NginxManager {
         proxy_connect_timeout 75s;
     }
 }`;
+        }
 
         const configPath = `/etc/nginx/sites-available/${fullDomain}`;
         const enabledPath = `/etc/nginx/sites-enabled/${fullDomain}`;
@@ -61,10 +142,12 @@ class NginxManager {
 
             console.log(`✅ Nginx reloaded successfully`);
 
+            const protocol = useHTTPS ? 'https' : 'http';
             return {
                 success: true,
                 domain: fullDomain,
-                url: `http://${fullDomain}`
+                url: `${protocol}://${fullDomain}`,
+                secure: useHTTPS
             };
 
         } catch (error) {
@@ -92,6 +175,14 @@ class NginxManager {
             await this.ssh.executeCommand('systemctl reload nginx');
 
             console.log(`✅ Deleted nginx config for ${fullDomain}`);
+
+            // Try to delete SSL certificate (optional, won't fail if doesn't exist)
+            try {
+                await this.ssh.executeCommand(`certbot delete --cert-name ${fullDomain} --non-interactive`);
+                console.log(`✅ Deleted SSL certificate for ${fullDomain}`);
+            } catch (certError) {
+                console.log(`ℹ️  No SSL certificate to delete for ${fullDomain}`);
+            }
 
             return {
                 success: true,
