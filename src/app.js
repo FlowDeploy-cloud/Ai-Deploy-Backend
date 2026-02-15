@@ -15,6 +15,7 @@ const { connectDB } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const deployRoutes = require('./routes/deploy');
 const userRoutes = require('./routes/user');
+const paymentRoutes = require('./routes/payment');
 
 // Import services
 const { getSSHManager } = require('./services/SSHManager');
@@ -97,6 +98,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/deployments', deployRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -123,6 +125,15 @@ app.get('/', (req, res) => {
             user: {
                 stats: 'GET /api/user/stats',
                 plan: 'POST /api/user/plan'
+            },
+            payments: {
+                plans: 'GET /api/payments/plans',
+                createOrder: 'POST /api/payments/create-order',
+                verifyPayment: 'POST /api/payments/verify-payment',
+                subscription: 'GET /api/payments/subscription',
+                payments: 'GET /api/payments',
+                cancelSubscription: 'POST /api/payments/subscription/cancel',
+                webhook: 'POST /api/payments/webhook'
             }
         }
     });

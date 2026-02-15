@@ -35,6 +35,17 @@ const userSchema = new mongoose.Schema({
     max_deployments: {
         type: Number,
         default: 5
+    },
+    // New payment-related fields
+    current_plan: {
+        type: String,
+        enum: ['free', 'starter', 'growth', 'business', 'enterprise'],
+        default: 'free'
+    },
+    subscription_status: {
+        type: String,
+        enum: ['none', 'active', 'expired', 'cancelled'],
+        default: 'none'
     }
 }, {
     timestamps: true,

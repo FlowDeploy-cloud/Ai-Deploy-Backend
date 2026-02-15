@@ -4,11 +4,12 @@ const Deployment = require('../models/Deployment');
 const DeploymentService = require('../services/DeploymentService');
 const { authenticate } = require('../middleware/auth');
 const { validateDeployment, validateDeploymentId } = require('../middleware/validation');
+const { checkDeploymentLimits } = require('../middleware/planLimits');
 
 const deploymentService = new DeploymentService();
 
 // Create new deployment
-router.post('/', authenticate, validateDeployment, async (req, res) => {
+router.post('/', authenticate, checkDeploymentLimits, validateDeployment, async (req, res) => {
     try {
         const userId = req.user.id;
         const deploymentData = req.body;
