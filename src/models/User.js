@@ -20,12 +20,33 @@ const userSchema = new mongoose.Schema({
     },
     password_hash: {
         type: String,
-        required: true
+        required: false // Not required for GitHub OAuth users
     },
     api_key: {
         type: String,
         unique: true,
         default: () => crypto.randomBytes(32).toString('hex')
+    },
+    // GitHub OAuth fields
+    github_id: {
+        type: String,
+        unique: true,
+        sparse: true // Allows null values while maintaining uniqueness
+    },
+    github_username: {
+        type: String,
+        sparse: true
+    },
+    github_access_token: {
+        type: String
+    },
+    avatar_url: {
+        type: String
+    },
+    auth_provider: {
+        type: String,
+        enum: ['local', 'github'],
+        default: 'local'
     },
     plan: {
         type: String,
@@ -79,7 +100,8 @@ userSchema.statics.create = async function({ username, email, password, plan = '
             password_hash: passwordHash,
             api_key: apiKey,
             plan,
-            max_deployments: maxDeployments
+            max_deployments: maxDeployments,
+            auth_provider: 'local'
         });
 
         await user.save();
@@ -89,6 +111,58 @@ userSchema.statics.create = async function({ username, email, password, plan = '
             const field = Object.keys(error.keyPattern)[0];
             throw new Error(`${field.charAt(0).toUpperCase() + field.slice(1)} already exists`);
         }
+        throw error;
+    }
+};
+
+userSchema.statics.findOrCreateGithubUser = async function({ githubId, username, email, accessToken, avatarUrl }) {
+    try {
+        // Try to find existing user by GitHub ID
+        let user = await this.findOne({ github_id: githubId });
+        
+        if (user) {
+            // Update access token and info
+            user.github_access_token = accessToken;
+            user.avatar_url = avatarUrl;
+            user.github_username = username;
+            await user.save();
+            return user;
+        }
+
+        // Check if user exists with this email
+        user = await this.findOne({ email: email.toLowerCase() });
+        if (user) {
+            // Link GitHub account to existing user
+            user.github_id = githubId;
+            user.github_username = username;
+            user.github_access_token = accessToken;
+            user.avatar_url = avatarUrl;
+            user.auth_provider = 'github';
+            await user.save();
+            return user;
+        }
+
+        // Create new user
+        const apiKey = crypto.randomBytes(32).toString('hex');
+        const maxDeployments = 5; // Default to free plan
+
+        user = new this({
+            username: username,
+            email: email.toLowerCase(),
+            github_id: githubId,
+            github_username: username,
+            github_access_token: accessToken,
+            avatar_url: avatarUrl,
+            api_key: apiKey,
+            plan: 'free',
+            max_deployments: maxDeployments,
+            auth_provider: 'github'
+        });
+
+        await user.save();
+        return user;
+    } catch (error) {
+        console.error('Error in findOrCreateGithubUser:', error);
         throw error;
     }
 };
