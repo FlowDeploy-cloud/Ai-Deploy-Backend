@@ -90,10 +90,13 @@ class RazorpayService {
             const plan = this.getPlan(planId);
             
             // Create order with verified amount from server
+            // Generate short receipt (max 40 chars for Razorpay)
+            const shortUserId = userId.toString().slice(-8); // Last 8 chars of userId
+            const timestamp = Date.now().toString().slice(-10); // Last 10 digits of timestamp
             const options = {
                 amount: plan.price, // Server-side verified amount
                 currency: plan.currency,
-                receipt: `order_${userId}_${Date.now()}`,
+                receipt: `ord_${shortUserId}_${timestamp}`, // Format: ord_XXXXXXXX_XXXXXXXXXX (max 26 chars)
                 notes: {
                     user_id: userId,
                     plan_id: planId,

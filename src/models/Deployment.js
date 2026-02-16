@@ -41,11 +41,23 @@ const deploymentSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['deploying', 'deployed', 'failed', 'stopped'],
+        enum: ['deploying', 'deployed', 'failed', 'stopped', 'suspended'],
         default: 'deploying'
     },
     pm2_frontend_name: String,
-    pm2_backend_name: String
+    pm2_backend_name: String,
+    // Suspension and deletion tracking
+    suspended_at: Date,
+    suspension_reason: {
+        type: String,
+        enum: ['subscription_expired', 'plan_limit_exceeded', 'payment_failed', 'manual'],
+        default: null
+    },
+    delete_scheduled_at: Date,  // When the deployment will be permanently deleted
+    deletion_warning_sent: {
+        type: Boolean,
+        default: false
+    }
 }, {
     timestamps: true,
     toJSON: {

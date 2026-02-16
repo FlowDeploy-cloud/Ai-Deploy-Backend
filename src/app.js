@@ -16,10 +16,12 @@ const authRoutes = require('./routes/auth');
 const deployRoutes = require('./routes/deploy');
 const userRoutes = require('./routes/user');
 const paymentRoutes = require('./routes/payment');
+const subscriptionRoutes = require('./routes/subscription');
 
 // Import services
 const { getSSHManager } = require('./services/SSHManager');
 const DeploymentService = require('./services/DeploymentService');
+const SubscriptionMonitor = require('./services/SubscriptionMonitor');
 const { authenticate } = require('./middleware/auth');
 const jwt = require('jsonwebtoken');
 
@@ -99,6 +101,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/deployments', deployRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -158,8 +161,6 @@ app.use((err, req, res, next) => {
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
     });
 });
-
-// WebSocket authentication middleware
 io.use(async (socket, next) => {
     try {
         const token = socket.handshake.auth.token;
@@ -175,23 +176,15 @@ io.use(async (socket, next) => {
         next(new Error('Authentication error: Invalid token'));
     }
 });
-
-// WebSocket connection handler
 io.on('connection', (socket) => {
     console.log(`✅ Client connected: ${socket.id} (User: ${socket.userId})`);
-
-    // Join user room for broadcasting
     socket.join(`user_${socket.userId}`);
     console.log(`📡 User ${socket.userId} joined room user_${socket.userId}`);
-
-    // Handle deployment request via WebSocket
     socket.on('deploy', async (data) => {
         try {
             console.log(`📦 Deployment request from user ${socket.userId}`);
             
             const deploymentService = new DeploymentService();
-            
-            // Log callback that emits to socket
             const onLog = (message, type) => {
                 socket.emit('log', {
                     message,
@@ -199,8 +192,6 @@ io.on('connection', (socket) => {
                     timestamp: new Date().toISOString()
                 });
             };
-
-            // Start deployment
             socket.emit('log', {
                 message: '🚀 Starting deployment...',
                 type: 'info',
@@ -211,8 +202,6 @@ io.on('connection', (socket) => {
 
             if (result.success) {
                 const deployment = result.deployment;
-                
-                // Build success message with port information
                 let successMessage = '\u2705 Deployment completed successfully!';
                 if (deployment.frontend_url) {
                     successMessage += `\n\n\ud83c\udf10 Frontend: ${deployment.frontend_url}`;
@@ -234,15 +223,11 @@ io.on('connection', (socket) => {
                         }
                     }
                 }
-
-                // Emit completion event
                 socket.emit('deployment_complete', {
                     success: true,
                     deployment: deployment,
                     message: successMessage
                 });
-
-                // Emit status event for compatibility
                 socket.emit('status', {
                     type: 'status',
                     status: 'deployed',
@@ -255,8 +240,6 @@ io.on('connection', (socket) => {
                     error: 'Deployment failed',
                     details: result
                 });
-
-                // Emit status event for compatibility
                 socket.emit('status', {
                     type: 'status',
                     status: 'failed',
@@ -272,19 +255,13 @@ io.on('connection', (socket) => {
             });
         }
     });
-
-    // Handle disconnect
     socket.on('disconnect', () => {
         console.log(`🔌 Client disconnected: ${socket.id}`);
     });
-
-    // Handle errors
     socket.on('error', (error) => {
         console.error('Socket error:', error);
     });
 });
-
-// Initialize SSH connection on startup
 const initializeSSH = async () => {
     try {
         const sshManager = getSSHManager();
@@ -295,43 +272,37 @@ const initializeSSH = async () => {
         console.log('⚠️  Server will start but SSH features may not work');
     }
 };
-
-// Database is already connected in connectDB() call above
-// No need for separate test function with Mongoose
-
-// Make io available globally for services
 global.io = io;
-
-// Start server
 const PORT = process.env.PORT || 4000;
 
 const startServer = async () => {
     try {
-        // Connect to MongoDB
         await connectDB();
-        
-        // Initialize SSH
         await initializeSSH();
-
-        // Start HTTP server
+        
+        // Start subscription monitoring service
+        const subscriptionMonitor = new SubscriptionMonitor();
+        subscriptionMonitor.startMonitoring();
+        
         server.listen(PORT, () => {
             console.log('');
-            console.log('🚀 ================================');
-            console.log('🚀 ClawDeploy SaaS Backend Started');
-            console.log('🚀 ================================');
-            console.log(`🌐 Server running on port: ${PORT}`);
-            console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`🌐 URL: http://localhost:${PORT}`);
-            console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
-            console.log(`💾 Database: MongoDB`);
-            console.log(`🔐 SSH Host: ${process.env.SSH_HOST}`);
-            console.log(`🌍 Base Domain: ${process.env.BASE_DOMAIN}`);
-            console.log('🚀 ================================');
+            console.log(' ================================');
+            console.log('ClawDeploy SaaS Backend Started');
+            console.log(' ================================');
+            console.log(` Server running on port: ${PORT}`);
+            console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(` URL: http://localhost:${PORT}`);
+            console.log(` WebSocket: ws://localhost:${PORT}`);
+            console.log(` Database: MongoDB`);
+            console.log(` SSH Host: ${process.env.SSH_HOST}`);
+            console.log(` Base Domain: ${process.env.BASE_DOMAIN}`);
+            console.log(` Monitoring: Subscription Monitor Active`);
+            console.log(' ================================');
             console.log('');
         });
 
     } catch (error) {
-        console.error('❌ Failed to start server:', error);
+        console.error(' Failed to start server:', error);
         process.exit(1);
     }
 };
