@@ -9,9 +9,19 @@ const checkDeploymentLimits = async (req, res, next) => {
         // Get user's active subscription
         const subscription = await Subscription.findByUserId(userId);
 
-        // If no subscription or expired, use free tier limits
+        // If no subscription or expired, block all deployments (free plan)
+        if (!subscription || !subscription.isActive()) {
+            return res.status(403).json({
+                success: false,
+                error: 'Subscription required',
+                message: 'Free plan does not support deployments. Please upgrade to a paid plan to deploy your projects.',
+                requiresUpgrade: true
+            });
+        }
+
+        // Use subscription limits
         let limits = {
-            max_frontend: 1,
+            max_frontend: 0,
             max_backend: 0
         };
 
