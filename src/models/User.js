@@ -67,6 +67,14 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['none', 'active', 'expired', 'cancelled'],
         default: 'none'
+    },
+    role: {
+        type: String,
+        enum: ['user', 'admin'],
+        default: 'user'
+    },
+    last_login: {
+        type: Date
     }
 }, {
     timestamps: true,

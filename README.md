@@ -1,156 +1,536 @@
-# ClawDeploy SaaS Backend
+# 🚀 ClawDeploy SaaS Backend
 
-A powerful SaaS backend for automated deployment of web applications using AI (ClawdBot) via SSH.
+A powerful SaaS backend for automated deployment of web applications using AI (ClawdBot) via SSH. Deploy your full-stack applications with intelligent AI assistance, automated configuration, and real-time monitoring.
 
-## Features
+## ✨ Features
 
-- 🚀 **Automated Deployments** - Deploy frontend and backend applications from GitHub repos
-- 🤖 **AI-Powered** - Uses ClawdBot AI for intelligent deployment detection and setup
-- 🔐 **Secure Authentication** - JWT tokens and API key support
-- 🌐 **Auto Subdomain Assignment** - Automatic subdomain generation with Nginx configuration
-- 📊 **Real-time Logs** - WebSocket support for live deployment logs
-- 🔌 **Port Management** - Automatic port allocation and management
-- 💾 **MongoDB Database** - Flexible NoSQL data storage for users and deployments
-- 🔒 **SSH Management** - Secure SSH connection handling for remote deployments
+### Core Features
+- 🚀 **Automated Deployments** - Deploy frontend and backend applications directly from GitHub repositories
+- 🤖 **AI-Powered Setup** - Uses ClawdBot AI for intelligent deployment detection and configuration
+- 🔐 **Secure Authentication** - JWT-based authentication with support for both local and GitHub OAuth
+- 🌐 **Auto Subdomain Assignment** - Automatic subdomain generation with Nginx reverse proxy configuration
+- 📊 **Real-time Logs** - WebSocket support for live deployment logs and status updates
+- 🔌 **Smart Port Management** - Automatic port allocation and conflict resolution
+- 💾 **MongoDB Database** - Flexible NoSQL database with optimized schemas and indexes
+- 🔒 **SSH Management** - Secure SSH connection handling for remote server deployments
 
-## Prerequisites
+### Subscription & Payments
+- 💳 **Razorpay Integration** - Complete payment gateway integration for subscriptions
+- 📦 **Multiple Plans** - Starter, Growth, Business, and Enterprise plans
+- 🔄 **Subscription Management** - Automatic renewal, cancellation, and upgrade handling
+- ⚠️ **Usage Monitoring** - Real-time tracking and warnings for deployment limits
+- 🚫 **Plan Restrictions** - Free plan users cannot deploy (paid plan required)
 
-- Node.js 16+ installed
-- MongoDB database (local or Atlas)
-- SSH access to deployment server
-- Nginx installed on deployment server
-- PM2 installed on deployment server
-- ClawdBot AI Deployer installed on deployment server
+### Developer Features
+- 🔄 **GitHub Integration** - OAuth login and direct repository access
+- 📝 **Environment Variables** - Secure environment configuration for deployments
+- 🔍 **Deployment Monitoring** - Track deployment status, logs, and health
+- 🗑️ **Deployment Management** - Start, stop, restart, and delete deployments
+- 📈 **Usage Analytics** - Track deployments, resources, and subscription usage
 
-## Installation
+## 🛠️ Tech Stack
 
-### 1. Clone and Install
+- **Runtime:** Node.js v16+
+- **Framework:** Express.js
+- **Database:** MongoDB with Mongoose ODM
+- **Authentication:** JWT + bcrypt
+- **Payment Gateway:** Razorpay
+- **Real-time Communication:** Socket.io
+- **SSH Client:** node-ssh
+- **API Rate Limiting:** express-rate-limit
+- **Security:** Helmet, CORS
+- **Process Management:** Requires PM2 on deployment server
+
+## 📋 Prerequisites
+
+### Required Software
+- **Node.js** 16+ (with npm)
+- **MongoDB** 5.0+ (local installation or MongoDB Atlas)
+- **SSH Access** to deployment server with root privileges
+
+### Deployment Server Requirements
+- **OS:** Linux (Ubuntu 20.04+ recommended)
+- **Nginx** - for reverse proxy and SSL
+- **PM2** - for process management
+- **Git** - for cloning repositories
+- **ClawdBot AI Deployer** - AI deployment assistant
+- **Python 3.8+** - for ClawdBot
+- **Node.js** - for running deployed applications
+
+### External Services
+- **GitHub OAuth App** - for GitHub authentication
+- **Razorpay Account** - for payment processing
+- **Domain/Subdomain** - configured DNS for deployments
+
+## 🚀 Installation
+
+### 1. Clone and Install Dependencies
 
 ```bash
+# Navigate to backend directory
 cd backend
+
+# Install Node.js dependencies
 npm install
 ```
 
-### 2. Setup Database
+### 2. Setup MongoDB Database
 
+#### Option A: Local MongoDB
 ```bash
 # Install MongoDB (Ubuntu/Debian)
+sudo apt-get update
 sudo apt-get install -y mongodb-org
+
+# Start MongoDB service
 sudo systemctl start mongod
 sudo systemctl enable mongod
 
-# Or use MongoDB Atlas (cloud) - see MONGODB_SCHEMA.md
+# Verify MongoDB is running
+sudo systemctl status mongod
+```
 
-# Run setup script to create indexes and admin user
+#### Option B: MongoDB Atlas (Cloud)
+1. Create account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a new cluster
+3. Configure network access (allow your IP)
+4. Create database user
+5. Get connection string
+
+#### Initialize Database
+```bash
+# Run setup script to create indexes and collections
 npm run setup-db
 ```
 
-### 3. Configure Environment
+### 3. Configure Environment Variables
 
-Copy `.env.example` to `.env` and update:
+Create a `.env` file in the backend directory:
+
+```bash
+# Copy example file
+cp .env.example .env
+
+# Edit with your configuration
+nano .env
+```
 
 ```env
-# Server
+# Server Configuration
 PORT=4000
 NODE_ENV=development
 
-# SSH Configuration
+# SSH Configuration (Deployment Server)
 SSH_HOST=160.250.204.184
 SSH_USER=root
 SSH_PASSWORD=your_ssh_password
 SSH_PORT=22
 
-# Database
+# Database Configuration (MongoDB)
 MONGODB_URI=mongodb://localhost:27017/clawdeploy
 # Or MongoDB Atlas:
 # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/clawdeploy
 
-# JWT
-JWT_SECRET=your_super_secret_jwt_key
+# JWT Configuration
+JWT_SECRET=your_super_secret_jwt_key_change_in_production
 JWT_EXPIRATION=7d
 
-# Domain
+# Domain Configuration
 BASE_DOMAIN=projectmarket.in
 
-# Ports
+# Port Range for Deployments
 MIN_PORT=3100
 MAX_PORT=8900
 
-# ClawdBot
+# ClawdBot Configuration
 CLAWDBOT_PATH=/root/.openclaw/workspace/server-dashboard/ai_deployer.py
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Razorpay Payment Gateway
+RAZORPAY_KEY_ID=your_razorpay_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+
+# GitHub OAuth
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_REDIRECT_URI=https://your-frontend-domain.com/auth/github/callback
 ```
 
-### 4. Start Server
+### 4. Setup GitHub OAuth App
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Fill in details:
+   - **Application name:** ClawDeploy
+   - **Homepage URL:** https://your-frontend-domain.com
+   - **Authorization callback URL:** https://your-frontend-domain.com/auth/github/callback
+4. Copy Client ID and Client Secret to `.env`
+
+### 5. Setup Razorpay (Optional for Payments)
+
+1. Create account at [Razorpay](https://razorpay.com/)
+2. Get API Keys from Dashboard
+3. Configure webhook endpoint: `https://your-api-domain.com/api/payment/webhook`
+4. Add keys to `.env`
+
+### 6. Start Server
 
 ```bash
-# Development
+# Development mode with auto-reload
 npm run dev
 
-# Production
+# Production mode
 npm start
+
+# Run tests
+npm test
 ```
 
-## API Documentation
+Server will start on `http://localhost:4000`
+
+## 📚 API Documentation
 
 ### Base URL
 ```
-http://your-server:4000/api
+Production: https://your-api-domain.com/api
+Development: http://localhost:4000/api
 ```
 
 ### Authentication
 
 All protected endpoints require either:
-- **Bearer Token**: `Authorization: Bearer <token>`
-- **API Key**: `X-API-Key: <api_key>`
+- **Bearer Token**: `Authorization: Bearer <jwt_token>`
+- **API Key**: `X-API-Key: <user_api_key>`
 
-### Endpoints
+### API Endpoints
 
-#### Auth
+#### 🔐 Authentication Routes (`/api/auth`)
 
 **POST /api/auth/signup**
 ```json
+Request:
 {
   "username": "john_doe",
   "email": "john@example.com",
-  "password": "SecurePass123",
-  "plan": "free"
+  "password": "SecurePass123"
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "token": "jwt_token_here",
+    "user": {
+      "id": "user_id",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "plan": "free",
+      "api_key": "generated_api_key"
+    }
+  }
 }
 ```
 
 **POST /api/auth/login**
 ```json
+Request:
 {
   "email": "john@example.com",
   "password": "SecurePass123"
 }
+
+Response: Same as signup
 ```
 
 **GET /api/auth/profile**
-- Headers: `Authorization: Bearer <token>`
+```bash
+Headers: Authorization: Bearer <token>
+
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "user_id",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "plan": "free",
+    "github_username": "johndoe",
+    "avatar_url": "https://..."
+  }
+}
+```
 
 **POST /api/auth/regenerate-api-key**
-- Headers: `Authorization: Bearer <token>`
+```bash
+Headers: Authorization: Bearer <token>
 
-#### Deployments
+Response:
+{
+  "success": true,
+  "data": {
+    "api_key": "new_api_key"
+  }
+}
+```
+
+**GET /api/auth/github**
+```
+Redirects to GitHub OAuth authorization
+```
+
+**POST /api/auth/github/callback**
+```json
+Request:
+{
+  "code": "github_oauth_code"
+}
+
+Response: Same as login
+```
+
+#### 🚀 Deployment Routes (`/api/deployments`)
 
 **POST /api/deployments**
 ```json
+Request:
 {
   "name": "My Portfolio",
   "frontend_repo": "https://github.com/user/frontend-repo",
   "backend_repo": "https://github.com/user/backend-repo",
   "frontend_description": "React portfolio website",
-  "backend_description": "Node.js API server",
+  "backend_description": "Node.js API server with MongoDB",
   "env_vars": {
     "API_KEY": "xxx",
     "DATABASE_URL": "mongodb://localhost:27017/db"
   }
 }
+
+Response:
+{
+  "success": true,
+  "message": "Deployment started",
+  "data": {
+    "deployment_id": "dep_123",
+    "name": "My Portfolio",
+    "subdomain": "clever-panda-42",
+    "status": "deploying"
+  }
+}
 ```
 
 **GET /api/deployments**
-- Get all deployments for current user
-- Query params: `limit`, `offset`
+```bash
+Query Params: ?limit=50&offset=0
+
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "mongo_id",
+      "deployment_id": "dep_123",
+      "name": "My Portfolio",
+      "subdomain": "clever-panda-42",
+      "frontend_url": "https://clever-panda-42.projectmarket.in",
+      "backend_url": "https://api-clever-panda-42.projectmarket.in",
+      "status": "active",
+      "createdAt": "2026-02-17T10:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+**GET /api/deployments/:id**
+```bash
+Response:
+{
+  "success": true,
+  "data": {
+    "deployment_id": "dep_123",
+    "name": "My Portfolio",
+    "status": "active",
+    "frontend_repo": "https://github.com/user/repo",
+    "frontend_port": 3000,
+    "backend_port": 4000,
+    // ... full deployment details
+  }
+}
+```
+
+**DELETE /api/deployments/:id**
+```bash
+Response:
+{
+  "success": true,
+  "message": "Deployment deleted successfully"
+}
+```
+
+**POST /api/deployments/:id/start**
+```bash
+Response:
+{
+  "success": true,
+  "message": "Deployment started successfully"
+}
+```
+
+**POST /api/deployments/:id/stop**
+```bash
+Response:
+{
+  "success": true,
+  "message": "Deployment stopped successfully"
+}
+```
+
+**POST /api/deployments/:id/restart**
+```bash
+Response:
+{
+  "success": true,
+  "message": "Deployment restarted successfully"
+}
+```
+
+**GET /api/deployments/:id/logs**
+```bash
+Query Params: ?lines=100
+
+Response:
+{
+  "success": true,
+  "data": {
+    "logs": ["log line 1", "log line 2", ...]
+  }
+}
+```
+
+#### 💳 Subscription Routes (`/api/subscription`)
+
+**GET /api/subscription**
+```bash
+Response:
+{
+  "success": true,
+  "data": {
+    "plan_id": "starter",
+    "plan_name": "Starter Plan",
+    "status": "active",
+    "current_start": "2026-01-01T00:00:00Z",
+    "current_end": "2026-02-01T00:00:00Z",
+    "limits": {
+      "max_frontend": 2,
+      "max_backend": 1
+    }
+  }
+}
+```
+
+**POST /api/subscription/create**
+```json
+Request:
+{
+  "plan_id": "starter"
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "subscription_id": "sub_123",
+    "razorpay_order": { /* Razorpay order details */ }
+  }
+}
+```
+
+**POST /api/subscription/cancel**
+```bash
+Response:
+{
+  "success": true,
+  "message": "Subscription cancelled successfully"
+}
+```
+
+**GET /api/subscription/warnings**
+```bash
+Response:
+{
+  "success": true,
+  "data": {
+    "has_warnings": true,
+    "warnings": [
+      {
+        "type": "expiring_soon",
+        "severity": "warning",
+        "message": "Your subscription expires in 3 days"
+      }
+    ]
+  }
+}
+```
+
+#### 💰 Payment Routes (`/api/payment`)
+
+**POST /api/payment/webhook**
+```bash
+Razorpay webhook endpoint for payment events
+```
+
+**POST /api/payment/verify**
+```json
+Request:
+{
+  "razorpay_payment_id": "pay_123",
+  "razorpay_subscription_id": "sub_123",
+  "razorpay_signature": "signature"
+}
+```
+
+#### 👤 User Routes (`/api/users`)
+
+**GET /api/users/me**
+```bash
+Headers: Authorization: Bearer <token>
+
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "user_id",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "plan": "starter",
+    "subscription_status": "active"
+  }
+}
+```
+
+**GET /api/users/github/repos**
+```bash
+Response:
+{
+  "success": true,
+  "data": {
+    "repositories": [
+      {
+        "name": "my-repo",
+        "full_name": "username/my-repo",
+        "html_url": "https://github.com/username/my-repo",
+        "description": "My awesome project",
+        "language": "JavaScript",
+        "private": false
+      }
+    ]
+  }
+}
+```
 
 **GET /api/deployments/:id**
 - Get specific deployment with status
