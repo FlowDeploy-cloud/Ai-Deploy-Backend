@@ -2,10 +2,12 @@ const Subscription = require('../models/Subscription');
 const User = require('../models/User');
 const Deployment = require('../models/Deployment');
 const DeploymentService = require('./DeploymentService');
+const AutomationService = require('./AutomationService');
 
 class SubscriptionMonitor {
     constructor() {
         this.deploymentService = new DeploymentService();
+        this.automationService = new AutomationService();
         this.GRACE_PERIOD_DAYS = 7; // 7 days grace period before deletion
     }
 
@@ -47,6 +49,18 @@ class SubscriptionMonitor {
                 const user = await User.findById(subscription.user_id);
                 if (user) {
                     await this.enforceSubscriptionLimits(user);
+
+                    await this.automationService.sendCriticalAlert({
+                        userId: user.id,
+                        eventType: 'subscription_expired',
+                        title: 'Subscription Expired',
+                        message: 'Your subscription has expired. Some deployments may be suspended.',
+                        severity: 'critical',
+                        metadata: {
+                            plan: user.current_plan,
+                            status: user.subscription_status
+                        }
+                    });
                 }
             }
 

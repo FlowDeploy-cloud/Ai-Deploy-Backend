@@ -2,6 +2,15 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
+const PLAN_MAX_DEPLOYMENTS = {
+    free: 5,
+    starter: 2,
+    growth: 8,
+    business: 17,
+    pro: 50,
+    enterprise: 999
+};
+
 const userSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -50,7 +59,7 @@ const userSchema = new mongoose.Schema({
     },
     plan: {
         type: String,
-        enum: ['free', 'pro', 'enterprise'],
+        enum: ['free', 'starter', 'growth', 'business', 'pro', 'enterprise'],
         default: 'free'
     },
     max_deployments: {
@@ -67,6 +76,55 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['none', 'active', 'expired', 'cancelled'],
         default: 'none'
+    },
+    notification_preferences: {
+        alert_email_enabled: {
+            type: Boolean,
+            default: false
+        },
+        alert_email: {
+            type: String,
+            default: ''
+        },
+        alert_whatsapp_enabled: {
+            type: Boolean,
+            default: false
+        },
+        alert_whatsapp_number: {
+            type: String,
+            default: ''
+        },
+        alert_whatsapp_provider: {
+            type: String,
+            enum: ['twilio', '360dialog'],
+            default: 'twilio'
+        },
+        critical_only: {
+            type: Boolean,
+            default: true
+        }
+    },
+    calendar_preferences: {
+        enabled: {
+            type: Boolean,
+            default: false
+        },
+        timezone: {
+            type: String,
+            default: 'Asia/Kolkata'
+        },
+        calendar_id: {
+            type: String,
+            default: ''
+        },
+        daily_hour: {
+            type: Number,
+            default: 9
+        },
+        daily_minute: {
+            type: Number,
+            default: 0
+        }
     },
     role: {
         type: String,
@@ -99,7 +157,7 @@ userSchema.statics.create = async function({ username, email, password, plan = '
     const passwordHash = await bcrypt.hash(password, 10);
     const apiKey = crypto.randomBytes(32).toString('hex');
     
-    const maxDeployments = plan === 'free' ? 5 : plan === 'pro' ? 50 : 999;
+    const maxDeployments = PLAN_MAX_DEPLOYMENTS[plan] || PLAN_MAX_DEPLOYMENTS.free;
 
     try {
         const user = new this({
@@ -209,7 +267,7 @@ userSchema.statics.updatePassword = async function(userId, newPassword) {
 };
 
 userSchema.statics.updatePlan = async function(userId, plan) {
-    const maxDeployments = plan === 'free' ? 5 : plan === 'pro' ? 50 : 999;
+    const maxDeployments = PLAN_MAX_DEPLOYMENTS[plan] || PLAN_MAX_DEPLOYMENTS.free;
     return await this.findByIdAndUpdate(
         userId,
         { plan, max_deployments: maxDeployments },

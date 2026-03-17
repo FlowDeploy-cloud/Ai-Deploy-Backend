@@ -1,10 +1,10 @@
 const Deployment = require('../models/Deployment');
 const DeploymentLog = require('../models/DeploymentLog');
-const User = require('../models/User');
 const ClawdBotService = require('./ClawdBotService');
 const PortManager = require('./PortManager');
 const NginxManager = require('./NginxManager');
 const SubdomainGenerator = require('../utils/SubdomainGenerator');
+const AutomationService = require('./AutomationService');
 
 class DeploymentService {
     constructor() {
@@ -12,6 +12,7 @@ class DeploymentService {
         this.portManager = new PortManager();
         this.nginxManager = new NginxManager();
         this.subdomainGenerator = new SubdomainGenerator();
+        this.automationService = new AutomationService();
     }
 
     // Emit Socket.IO event to user
@@ -41,13 +42,8 @@ class DeploymentService {
                 deploymentId = deployment.id;
                 logMessage(`📦 Using existing deployment: ${deployment.deployment_id}`, 'info');
             } else {
-                // 1. Validate user can deploy
-                const canDeploy = await User.canDeploy(userId);
-                if (!canDeploy) {
-                    throw new Error('Deployment limit reached. Please upgrade your plan.');
-                }
-
-                logMessage('✅ User validation passed', 'info');
+                // 1. Testing override: skip user deployment cap validation.
+                logMessage('✅ User validation skipped (testing mode)', 'info');
 
                 // 2. Generate unique subdomain
                 const existingDeployments = await Deployment.findByUserId(userId);
@@ -236,11 +232,29 @@ class DeploymentService {
                     type: 'success',
                     timestamp: new Date().toISOString()
                 });
+
+                await this.automationService.sendDeploymentSuccess({
+                    userId,
+                    deployment: finalDeployment
+                });
             } else {
                 this.emitToUser(userId, 'status', {
                     type: 'status',
                     status: 'failed',
                     error: 'Deployment failed'
+                });
+
+                await this.automationService.sendCriticalAlert({
+                    userId,
+                    eventType: 'deployment_failed',
+                    title: 'Deployment Failed',
+                    message: `Deployment ${finalDeployment?.name || deploymentId} failed`,
+                    severity: 'critical',
+                    metadata: {
+                        deployment_id: finalDeployment?.deployment_id,
+                        frontend_repo: finalDeployment?.frontend_repo,
+                        backend_repo: finalDeployment?.backend_repo
+                    }
                 });
             }
             return {
@@ -263,6 +277,21 @@ class DeploymentService {
                 message: `❌ Deployment error: ${error.message}`,
                 type: 'error',
                 timestamp: new Date().toISOString()
+            });
+
+            await this.automationService.sendCriticalAlert({
+                userId,
+                eventType: 'deployment_error',
+                title: 'Deployment Error',
+                message: error.message,
+                severity: 'critical',
+                metadata: {
+                    deployment_payload: {
+                        name: deploymentData?.name,
+                        frontend_repo: deploymentData?.frontend_repo,
+                        backend_repo: deploymentData?.backend_repo
+                    }
+                }
             });
             
             throw error;

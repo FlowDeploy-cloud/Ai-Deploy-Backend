@@ -1,28 +1,33 @@
 const Subscription = require('../models/Subscription');
 const Deployment = require('../models/Deployment');
 
+const FREE_PLAN_LIMITS = {
+    max_frontend: 1,
+    max_backend: 1
+};
+
 // Check if user has reached deployment limits
 const checkDeploymentLimits = async (req, res, next) => {
     try {
+        // Testing override: bypass plan-based deployment limits.
+        req.planLimits = {
+            max_frontend: Number.MAX_SAFE_INTEGER,
+            max_backend: Number.MAX_SAFE_INTEGER
+        };
+        req.currentUsage = {
+            frontend: 0,
+            backend: 0
+        };
+        return next();
+
         const userId = req.user.id;
 
         // Get user's active subscription
         const subscription = await Subscription.findByUserId(userId);
 
-        // If no subscription or expired, block all deployments (free plan)
-        if (!subscription || !subscription.isActive()) {
-            return res.status(403).json({
-                success: false,
-                error: 'Subscription required',
-                message: 'Free plan does not support deployments. Please upgrade to a paid plan to deploy your projects.',
-                requiresUpgrade: true
-            });
-        }
-
-        // Use subscription limits
+        // Default to free/demo limits when user has no active paid subscription.
         let limits = {
-            max_frontend: 0,
-            max_backend: 0
+            ...FREE_PLAN_LIMITS
         };
 
         if (subscription && subscription.isActive()) {

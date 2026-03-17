@@ -18,6 +18,7 @@ const userRoutes = require('./routes/user');
 const paymentRoutes = require('./routes/payment');
 const subscriptionRoutes = require('./routes/subscription');
 const adminRoutes = require('./routes/admin');
+const automationRoutes = require('./routes/automation');
 
 // Import services
 const { getSSHManager } = require('./services/SSHManager');
@@ -104,6 +105,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/automation', automationRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
